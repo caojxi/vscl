@@ -1,0 +1,64 @@
+<html>
+  <head>
+    <title>Get/Set</title>
+  </head>
+  <body>
+    <div id="test">
+      <p>{{msg}}</p>
+      <p>{{msg}}</p>
+      <p>{{msg}}</p>
+      <p>{{msg}}</p>
+      <p>{{msg}}</p>
+      <p>{{msg}}</p>
+    </div>
+
+    <script>
+      var bindingMark = 'data-elememt-binding'
+
+      function El(id, initData) {
+        var data = this.data = {},
+            bindings = {},
+            el = this.el = document.getElementById(id),
+            content = el.innerHTML.replace(/\{\{(.*)\}\}/g, markToken)
+
+        el.innerHTML = content
+
+        for (var variable in bindings) {
+          bind(variable)
+        }
+
+        for (var variable in initData) {
+          data[variable] = initData[variable]
+        }
+
+        function markToken(match, variable) {
+          bindings[variable] = {}
+          return '<span ' + bindingMark + '=' + variable + '></span>'
+        }
+
+        function bind(variable) {
+          var els = bindings[variable].els = el.querySelectorAll('[' + bindingMark + ']')
+
+          ;[].forEach.call(els, function (e) {
+            e.removeAttribute(bindingMark)
+          })
+
+          Object.defineProperty(data, variable, {
+            set: function (newVal) {
+              ;[].forEach.call(els, function (e) {
+                bindings[variable].value = e.textContent = newVal
+              })
+            },
+            get: function () {
+              return bindings[variable].value
+            }            
+          })
+        }
+      }
+
+      new El('test', {
+        msg: 'hello'
+      })
+    </script>
+  </body>
+</html>
