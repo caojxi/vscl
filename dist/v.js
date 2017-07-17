@@ -27,8 +27,10 @@ var selector = Object.keys(directives).map(function (d) {
 
 function Seed(opts) {
   var self = this,
-      root = this.el = document.getElementById(opts.id); // Element
-  els = root.querySelectorAll(selector), bindings = {}; // internal real data
+      root = this.el = document.getElementById(opts.id),
+      // Element
+  els = root.querySelectorAll(selector),
+      bindings = {}; // internal real data
 
   self.scope = {} // external interface
 
@@ -124,8 +126,10 @@ function parseDirective(attr) {
       // [sd]-text
   argIndex = noprefix.indexOf('-'),
       dirname = argIndex === -1 // no argument
-  ? noprefix : noprefix.slice(0, argIndex); // [text]-is
-  def = directives[dirname], // directive definition
+  ? noprefix : noprefix.slice(0, argIndex),
+      // [text]-is
+  def = directives[dirname],
+      // directive definition
   arg = argIndex === -1 ? null : noprefix.slice(argIndex);
 
   // parse scope variable key and pipe filters

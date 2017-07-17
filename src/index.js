@@ -8,7 +8,7 @@ var prefix = 'sd',
 
 function Seed(opts) {
    var self = this,
-       root = this.el = document.getElementById(opts.id) // Element
+       root = this.el = document.getElementById(opts.id), // Element
        els = root.querySelectorAll(selector),
        bindings = {}  // internal real data
 
@@ -106,7 +106,7 @@ function parseDirective(attr) {
       argIndex = noprefix.indexOf('-'),
       dirname = argIndex === -1 // no argument
         ? noprefix
-        : noprefix.slice(0, argIndex) // [text]-is
+        : noprefix.slice(0, argIndex), // [text]-is
       def = Directives[dirname], // directive definition
       arg = argIndex === -1
         ? null

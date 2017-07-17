@@ -1,0 +1,31 @@
+<html>
+
+<head>
+  <title>Test</title>
+</head>
+<script src="dist/v.js"></script>
+
+<body>
+  <div id="test" sd-on-click="changeMessage | .button">
+    <p sd-text="msg | capitalize"></p>
+    <p sd-show="something">YOYOYO</p>
+    <p class="button" sd-text="msg"></p>
+    <p sd-class-red="error" sd-text="hello"></p>
+  </div>
+
+  <script>
+    var app = v.create({
+      id: 'test',
+      // template
+      scope: {
+        msg: 'hello',
+        hello: 'WHWHWHW',
+        changeMessage: function () {
+          app.scope.msg = 'hola'
+        }
+      }
+    })
+  </script>
+</body>
+
+</html>
