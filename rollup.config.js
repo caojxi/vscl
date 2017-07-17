@@ -1,11 +1,11 @@
-import buble from 'rollup-plugin-buble';
+import babel from 'rollup-plugin-babel';
 import nodeResolve from 'rollup-plugin-node-resolve';
 
 export default {
   moduleName: 'v',
   plugins: [
-    buble({
-      objectAssign: 'Object.assign'
+    babel({
+      exclude: 'node_modules/*'
     }),
     nodeResolve({
       jsnext: true
