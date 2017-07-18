@@ -40,6 +40,9 @@ const directives = {
         if (match) handler.apply(this, arguments)
       }
     }
+  },
+  repeat: function () {
+
   }
 }
 

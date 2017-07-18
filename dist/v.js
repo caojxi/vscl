@@ -3,7 +3,11 @@ var v = (function () {
 
 var filters = {
   capitalize: function capitalize(value) {
-    return value.charAt[0].toUpperCase() + value.slice(1);
+    value = value.toString();
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  },
+  uppercase: function uppercase(value) {
+    return value.toUpperCase();
   }
 };
 
@@ -49,7 +53,8 @@ var directives = {
         if (match) handler.apply(this, arguments);
       };
     }
-  }
+  },
+  repeat: function repeat() {}
 };
 
 var prefix = 'sd';
@@ -61,9 +66,9 @@ function Seed(app) {
   var self = this,
       root = this.el = document.getElementById(app.id),
       // Element
-  els = root.querySelectorAll(selector),
-      // DOM binding elements
-  bindings = {}; // internal real data
+  els = root.querySelectorAll(selector); // DOM binding elements
+
+  var bindings = self._bindings = {}; // internal real data
 
   self.scope = {} // external interface
 
@@ -85,6 +90,28 @@ function Seed(app) {
   }
 }
 
+Seed.prototype.dump = function () {
+  var data = {};
+
+  for (var key in this._bindings) {
+    data[key] = this._bindings[key];
+  }
+
+  return data;
+};
+
+Seed.prototype.destroy = function () {
+  for (var key in this._bindings) {
+    this._bindings[key].directives.forEach(function (directive) {
+      if (directive.definition.unbind) {
+        directive.definition.unbind(directive.el, directive.argument, directive);
+      }
+    });
+  }
+
+  this.el.parentNode.removeChild(this.el);
+};
+
 function cloneAttributes(attributes) {
   return [].map.call(attributes, function (attr) {
     return {
@@ -95,6 +122,7 @@ function cloneAttributes(attributes) {
 }
 
 function bindDirective(seed, el, bindings, directive) {
+  directive.el = el;
   el.removeAttribute(directive.attr.name);
 
   var key = directive.key,
@@ -107,7 +135,6 @@ function bindDirective(seed, el, bindings, directive) {
     };
   }
 
-  directive.el = el;
   binding.directives.push(directive);
 
   if (directive.bind) {
@@ -127,11 +154,9 @@ function bindAccessors(seed, key, binding) {
     set: function set(value) {
       binding.value = value;
       binding.directives.forEach(function (directive) {
-        if (value && directive.filters) {
-          value = applyFilters(value, directive);
-        }
+        var filteredValue = value && directive.filters ? applyFilters(value, directive) : value;
 
-        directive.update(directive.el, value, directive.arguments, directive, seed);
+        directive.update(directive.el, filteredValue, directive.arguments, directive, seed);
       });
     }
   });
