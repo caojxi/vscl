@@ -1,6 +1,46 @@
 var v = (function () {
 'use strict';
 
+var directives = {
+  text: function text(value) {
+    this.el.textContent = value || '';
+  },
+  show: function show(value) {
+    this.el.style.display = value ? '' : 'none';
+  },
+  class: function _class(value) {
+    this.el.classList[value ? 'add' : 'remove'](this.arg);
+  },
+  on: {
+    update: function update(handler) {
+      var event = this.arg;
+      if (!this.handlers) {
+        this.handlers = {};
+      }
+
+      var handlers = this.handlers;
+
+      if (handlers[event]) {
+        this.el.removeEventListener(event, handlers[event]);
+      }
+
+      if (handler) {
+        handler = handler.bind(this.el);
+        this.el.addEventListener(event, handler);
+        handlers[event] = handler;
+      }
+    },
+    unbind: function unbind() {
+      var event = this.arg;
+
+      if (this.handlers) {
+        this.el.removeEventListener(event, this.handlers[event]);
+      }
+    }
+  },
+  repeat: function repeat() {}
+};
+
 var filters = {
   capitalize: function capitalize(value) {
     value = value.toString();
@@ -8,53 +48,85 @@ var filters = {
   },
   uppercase: function uppercase(value) {
     return value.toUpperCase();
-  }
-};
-
-var directives = {
-  text: function text(el, value) {
-    el.textContent = value || '';
   },
-  show: function show(el, value) {
-    el.style.display = value ? '' : 'none';
-  },
-  class: function _class(el, value, className) {
-    el.classList[value ? 'add' : 'remove'](className);
-  },
-  on: {
-    update: function update(el, handler, event, directive) {
-      if (!directive.handlers) {
-        directive.handlers = {};
-      }
+  delegate: function delegate(handler, selectors) {
+    return function (e) {
+      var match = selectors.every(function (selector) {
+        return e.target.webkitMatchesSelector(selector);
+      });
 
-      var handlers = directive.handlers;
-
-      if (handlers[event]) {
-        el.removeEventListener(event, handlers[event]);
-      }
-
-      if (handler) {
-        handler = handler.bind(el);
-        el.addEventListener(event, handler);
-        handlers[event] = handler;
-      }
-    },
-    unbind: function unbind(el, event, directive) {
-      if (directive.handlers) {
-        el.removeEventListener(event, directive.handlers[event]);
-      }
-    },
-    customFilter: function customFilter(handler, selectors) {
-      return function (e) {
-        var match = selectors.every(function (selector) {
-          return e.target.webkitMatchesSelector(selector);
-        });
-
-        if (match) handler.apply(this, arguments);
-      };
-    }
+      if (match) handler.apply(this, arguments);
+    };
   },
   repeat: function repeat() {}
+};
+
+var KEY_RE = /^[^\|]+/;
+var FILTERS_RE = /\|[^\|]+/g;
+
+function Directive(def, attr, arg, key) {
+  if (typeof def === 'function') {
+    this._update = def;
+  } else {
+    for (var prop in def) {
+      if (prop === 'update') {
+        this._update = def[prop];
+      } else {
+        this[prop] = def[prop];
+      }
+    }
+  }
+
+  this.attr = attr;
+  this.arg = arg;
+  this.key = key;
+
+  var filters$$1 = attr.value.match(FILTERS_RE);
+  if (filters$$1) {
+    this.filters = filters$$1.map(function (filter) {
+      var tokens = filter.replace('|', '').trim().split(/\s+/);
+      return {
+        apply: filters[tokens[0]],
+        args: tokens.length > 1 ? tokens.slice(1) : null
+      };
+    });
+  }
+}
+
+Directive.prototype.applyFilters = function (value) {
+  var filtered = value;
+  this.filters.forEach(function (filter) {
+    if (filter.apply) {
+      filtered = filter.apply(filtered, filter.args);
+    }
+  });
+
+  return filtered;
+};
+
+Directive.prototype.update = function (value) {
+  if (this.filters) {
+    value = this.applyFilters(value);
+  }
+
+  this._update(value);
+};
+
+var Directive$1 = {
+  // make sure the directive value is valid
+  parse: function parse(attr, prefix) {
+    if (attr.name.indexOf(prefix) === -1) return null;
+
+    var noPrefix = attr.name.slice(prefix.length + 1),
+        argIndex = noPrefix.indexOf('-'),
+        arg = argIndex === -1 ? null : noPrefix.slice(argIndex + 1),
+        name = arg ? noPrefix.slice(0, argIndex) : noPrefix,
+        def = directives[name];
+
+    var key = attr.value.match(KEY_RE);
+
+    return def && key ? new Directive(def, attr, arg, key[0].trim()) : null;
+  }
 };
 
 var prefix = 'sd';
@@ -68,27 +140,28 @@ function Seed(app) {
       // Element
   els = root.querySelectorAll(selector); // DOM binding elements
 
-  var bindings = self._bindings = {}; // internal real data
-
+  self.bindings = {}; // internal real data
   self.scope = {} // external interface
 
-  ;[].forEach.call(els, processNode);
-  processNode(root);
+  ;[].forEach.call(els, this.compileNode.bind(this));
+  this.compileNode(root);
 
   // initialize all variables by invoking setters
-  for (var key in bindings) {
+  for (var key in self.bindings) {
     self.scope[key] = app.scope[key];
   }
-
-  function processNode(el) {
-    cloneAttributes(el.attributes).forEach(function (attr) {
-      var directive = parseDirective(attr);
-      if (directive) {
-        bindDirective(self, el, bindings, directive);
-      }
-    });
-  }
 }
+
+Seed.prototype.compileNode = function (node) {
+  var self = this;
+
+  cloneAttributes(node.attributes).forEach(function (attr) {
+    var directive = Directive$1.parse(attr, prefix);
+    if (directive) {
+      self.bind(node, directive);
+    }
+  });
+};
 
 Seed.prototype.dump = function () {
   var data = {};
@@ -121,101 +194,51 @@ function cloneAttributes(attributes) {
   });
 }
 
-function bindDirective(seed, el, bindings, directive) {
-  directive.el = el;
-  el.removeAttribute(directive.attr.name);
+Seed.prototype.bind = function (node, directive) {
+  directive.el = node;
+  node.removeAttribute(directive.attr.name);
 
   var key = directive.key,
-      binding = bindings[key];
+      binding = this.bindings[key] || this.createBinding(key);
 
-  if (!binding) {
-    bindings[key] = binding = {
-      value: undefined,
-      directives: []
-    };
-  }
-
+  // add directive to this binding
   binding.directives.push(directive);
 
   if (directive.bind) {
-    directive.bind(el, binding.value);
+    directive.bind(node, binding.value);
   }
+};
 
-  if (!seed.scope.hasOwnProperty(key)) {
-    bindAccessors(seed, key, binding);
-  }
-}
+Seed.prototype.createBinding = function (key) {
+  var binding = {
+    value: undefined,
+    directives: []
+  };
 
-function bindAccessors(seed, key, binding) {
-  Object.defineProperty(seed.scope, key, {
+  this.bindings[key] = binding;
+
+  // bind accessor triggers to scope
+  Object.defineProperty(this.scope, key, {
     get: function get() {
       return binding.value;
     },
     set: function set(value) {
       binding.value = value;
       binding.directives.forEach(function (directive) {
-        var filteredValue = value && directive.filters ? applyFilters(value, directive) : value;
-
-        directive.update(directive.el, filteredValue, directive.arguments, directive, seed);
+        directive.update(value);
       });
     }
   });
-}
 
-function applyFilters(value, directive) {
-  if (directive.definition.customFilter) {
-    return directive.definition.customFilter(value, directive.filters);
-  } else {
-    directive.filters.forEach(function (filter) {
-      if (filters[filter]) {
-        value = filters[filter](value);
-      }
-    });
-
-    return value;
-  }
-}
-
-function parseDirective(attr) {
-  if (attr.name.indexOf(prefix) === -1) return;
-
-  // parse directive name and argument  
-  var noprefix = attr.name.slice(prefix.length + 1),
-      // sd-[text]
-  argIndex = noprefix.indexOf('-'),
-      dirname = argIndex === -1 // no argument
-  ? noprefix : noprefix.slice(0, argIndex),
-      // [on]-click
-  def = directives[dirname],
-      // directive definition
-  arg = argIndex === -1 ? null : noprefix.slice(argIndex); // on-[click]
-
-  // parse scope variable key and pipe filters
-  var exp = attr.value,
-      pipeIndex = exp.indexOf('|'),
-      key = pipeIndex === -1 // no filter
-  ? exp.trim() : exp.slice(0, pipeIndex).trim(),
-      // sd-text="msg | capitalize"
-  filters$$1 = pipeIndex === -1 ? null : exp.slice(pipeIndex).split('|').map(function (filter) {
-    return filter.trim();
-  });
-
-  return def ? {
-    attr: attr,
-    key: key, // object key
-    filters: filters$$1,
-    definition: def, // directive definition
-    arguments: arg,
-    update: typeof def === 'function' ? def : def.update
-  } : null;
-}
+  return binding;
+};
 
 var index = {
   create: function create(app) {
     return new Seed(app);
   },
-  filters: filters,
-  directives: directives
+  directive: function directive() {},
+  filter: function filter() {}
 };
 
 return index;

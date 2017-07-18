@@ -5,6 +5,18 @@ const filters = {
   },
   uppercase: function (value) {
     return value.toUpperCase()
+  },
+  delegate: function (handler, selectors) {
+    return function (e) {
+      var match = selectors.every(function (selector) {
+        return e.target.webkitMatchesSelector(selector)
+      })
+
+      if (match) handler.apply(this, arguments)
+    }
+  },
+  repeat: function () {
+
   }
 }
 

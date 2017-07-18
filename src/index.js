@@ -1,4 +1,4 @@
-import Filters from './filters'
+import Directive from './directive'
 import Directives from './directives'
 
 var prefix = 'sd',
@@ -11,26 +11,27 @@ function Seed(app) {
        root = this.el = document.getElementById(app.id), // Element
        els = root.querySelectorAll(selector) // DOM binding elements
 
-  var bindings = self._bindings = {}  // internal real data
-
+  self.bindings = {}  // internal real data
   self.scope = {} // external interface
 
-  ;[].forEach.call(els, processNode)
-  processNode(root)
+  ;[].forEach.call(els, this.compileNode.bind(this))
+  this.compileNode(root)
 
   // initialize all variables by invoking setters
-  for (var key in bindings) {
+  for (var key in self.bindings) {
     self.scope[key] = app.scope[key]
   }
+}
 
-  function processNode(el) {
-    cloneAttributes(el.attributes).forEach(function (attr) {
-      var directive = parseDirective(attr)
-      if (directive) {
-        bindDirective(self, el, bindings, directive)
-      }
-    })
-  }
+Seed.prototype.compileNode = function (node) {
+  var self = this
+
+  cloneAttributes(node.attributes).forEach(function (attr) {
+    var directive = Directive.parse(attr, prefix)
+    if (directive) {
+      self.bind(node, directive)
+    }
+  })
 }
 
 Seed.prototype.dump = function () {
@@ -68,107 +69,53 @@ function cloneAttributes(attributes) {
   })
 }
 
-function bindDirective(seed, el, bindings, directive) {
-  directive.el = el
-  el.removeAttribute(directive.attr.name)
+Seed.prototype.bind = function (node, directive) {
+  directive.el = node
+  node.removeAttribute(directive.attr.name)
 
   var key = directive.key,
-      binding = bindings[key]
+      binding = this.bindings[key] || this.createBinding(key)
   
-  if (!binding) {
-    bindings[key] = binding = {
-      value: undefined,
-      directives: []
-    }
-  }
-
+  // add directive to this binding
   binding.directives.push(directive)
 
   if (directive.bind) {
-    directive.bind(el, binding.value)
-  }
-
-  if (!seed.scope.hasOwnProperty(key)) {
-    bindAccessors(seed, key, binding)
+    directive.bind(node, binding.value)
   }
 }
 
-function bindAccessors(seed, key, binding) {
-  Object.defineProperty(seed.scope, key, {
+Seed.prototype.createBinding = function (key) {
+  var binding = {
+    value: undefined,
+    directives: []
+  }
+
+  this.bindings[key] = binding
+
+  // bind accessor triggers to scope
+  Object.defineProperty(this.scope, key, {
     get: function () {
       return binding.value
     },
     set: function (value) {
       binding.value = value
       binding.directives.forEach(function (directive) {
-        var filteredValue = value && directive.filters
-          ? applyFilters(value, directive)
-          : value
-
-        directive.update(directive.el, filteredValue, directive.arguments, directive, seed)
+        directive.update(value)
       })
     }
   })
-}
 
-function applyFilters(value, directive) {
-  if (directive.definition.customFilter) {
-    return directive.definition.customFilter(value, directive.filters)
-  } else {
-    directive.filters.forEach(function (filter) {
-      if (Filters[filter]) {
-        value = Filters[filter](value)
-      }
-    })
-
-    return value
-  }
-}
-
-function parseDirective(attr) {
-  if (attr.name.indexOf(prefix) === -1) return
-  
-  // parse directive name and argument  
-  var noprefix = attr.name.slice(prefix.length + 1), // sd-[text]
-      argIndex = noprefix.indexOf('-'),
-      dirname = argIndex === -1 // no argument
-        ? noprefix
-        : noprefix.slice(0, argIndex), // [on]-click
-      def = Directives[dirname], // directive definition
-      arg = argIndex === -1
-        ? null
-        : noprefix.slice(argIndex) // on-[click]
-
-  // parse scope variable key and pipe filters
-  var exp = attr.value,
-      pipeIndex = exp.indexOf('|'),
-      key = pipeIndex === -1 // no filter
-        ? exp.trim()
-        : exp.slice(0, pipeIndex).trim(), // sd-text="msg | capitalize"
-      filters = pipeIndex === -1
-        ? null
-        : exp.slice(pipeIndex).split('|').map(function (filter) {
-          return filter.trim()
-        }) 
-  
-  return def
-        ? {
-          attr: attr,
-          key: key, // object key
-          filters: filters,
-          definition: def, // directive definition
-          arguments: arg,
-          update: typeof def === 'function'
-            ? def
-            : def.update
-        }
-        : null
+  return binding
 }
 
 export default {
   create: function (app) {
     return new Seed(app)
   },
-  filters: Filters,
-  directives: Directives
+  directive: function () {
+
+  },
+  filter: function () {
+
+  }
 }
