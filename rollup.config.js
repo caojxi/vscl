@@ -5,7 +5,16 @@ export default {
   moduleName: 'v',
   plugins: [
     babel({
-      exclude: 'node_modules/*'
+      babelrc: false,
+      presets: [[
+        'es2015', {
+          modules: false
+        }
+      ]],
+      plugins: [
+        "external-helpers"
+      ],
+      exclude: 'node_modules/**'
     }),
     nodeResolve({
       jsnext: true
