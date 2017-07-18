@@ -11,12 +11,44 @@ var directives = {
   text: function text(el, value) {
     el.textContent = value || '';
   },
-  show: function show(el, value) {},
-  class: function _class(el, value, classname) {},
+  show: function show(el, value) {
+    el.style.display = value ? '' : 'none';
+  },
+  class: function _class(el, value, className) {
+    el.classList[value ? 'add' : 'remove'](className);
+  },
   on: {
-    update: function update(el, handler, event, directive) {},
-    unbind: function unbind(el, event, directive) {},
-    customFilter: function customFilter(handler, selector) {}
+    update: function update(el, handler, event, directive) {
+      if (!directive.handlers) {
+        directive.handlers = {};
+      }
+
+      var handlers = directive.handlers;
+
+      if (handlers[event]) {
+        el.removeEventListener(event, handlers[event]);
+      }
+
+      if (handler) {
+        handler = handler.bind(el);
+        el.addEventListener(event, handler);
+        handlers[event] = handler;
+      }
+    },
+    unbind: function unbind(el, event, directive) {
+      if (directive.handlers) {
+        el.removeEventListener(event, directive.handlers[event]);
+      }
+    },
+    customFilter: function customFilter(handler, selectors) {
+      return function (e) {
+        var match = selectors.every(function (selector) {
+          return e.target.webkitMatchesSelector(selector);
+        });
+
+        if (match) handler.apply(this, arguments);
+      };
+    }
   }
 };
 
@@ -25,12 +57,13 @@ var selector = Object.keys(directives).map(function (d) {
   return '[' + prefix + '-' + d + ']';
 }).join();
 
-function Seed(opts) {
+function Seed(app) {
   var self = this,
-      root = this.el = document.getElementById(opts.id),
+      root = this.el = document.getElementById(app.id),
       // Element
   els = root.querySelectorAll(selector),
-      bindings = {}; // internal real data
+      // DOM binding elements
+  bindings = {}; // internal real data
 
   self.scope = {} // external interface
 
@@ -39,7 +72,7 @@ function Seed(opts) {
 
   // initialize all variables by invoking setters
   for (var key in bindings) {
-    self.scope[key] = opts.scope[key];
+    self.scope[key] = app.scope[key];
   }
 
   function processNode(el) {
@@ -123,21 +156,21 @@ function parseDirective(attr) {
 
   // parse directive name and argument  
   var noprefix = attr.name.slice(prefix.length + 1),
-      // [sd]-text
+      // sd-[text]
   argIndex = noprefix.indexOf('-'),
       dirname = argIndex === -1 // no argument
   ? noprefix : noprefix.slice(0, argIndex),
-      // [text]-is
+      // [on]-click
   def = directives[dirname],
       // directive definition
-  arg = argIndex === -1 ? null : noprefix.slice(argIndex);
+  arg = argIndex === -1 ? null : noprefix.slice(argIndex); // on-[click]
 
   // parse scope variable key and pipe filters
   var exp = attr.value,
       pipeIndex = exp.indexOf('|'),
       key = pipeIndex === -1 // no filter
   ? exp.trim() : exp.slice(0, pipeIndex).trim(),
-      // sd-text="msg | name"
+      // sd-text="msg | capitalize"
   filters$$1 = pipeIndex === -1 ? null : exp.slice(pipeIndex).split('|').map(function (filter) {
     return filter.trim();
   });
@@ -153,8 +186,8 @@ function parseDirective(attr) {
 }
 
 var index = {
-  create: function create(opts) {
-    return new Seed(opts);
+  create: function create(app) {
+    return new Seed(app);
   },
   filters: filters,
   directives: directives

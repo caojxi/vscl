@@ -6,10 +6,10 @@ var prefix = 'sd',
       return '[' + prefix + '-' + d + ']'
     }).join()
 
-function Seed(opts) {
+function Seed(app) {
    var self = this,
-       root = this.el = document.getElementById(opts.id), // Element
-       els = root.querySelectorAll(selector),
+       root = this.el = document.getElementById(app.id), // Element
+       els = root.querySelectorAll(selector), // DOM binding elements
        bindings = {}  // internal real data
 
   self.scope = {} // external interface
@@ -19,7 +19,7 @@ function Seed(opts) {
 
   // initialize all variables by invoking setters
   for (var key in bindings) {
-    self.scope[key] = opts.scope[key]
+    self.scope[key] = app.scope[key]
   }
 
   function processNode(el) {
@@ -102,22 +102,22 @@ function parseDirective(attr) {
   if (attr.name.indexOf(prefix) === -1) return
   
   // parse directive name and argument  
-  var noprefix = attr.name.slice(prefix.length + 1), // [sd]-text
+  var noprefix = attr.name.slice(prefix.length + 1), // sd-[text]
       argIndex = noprefix.indexOf('-'),
       dirname = argIndex === -1 // no argument
         ? noprefix
-        : noprefix.slice(0, argIndex), // [text]-is
+        : noprefix.slice(0, argIndex), // [on]-click
       def = Directives[dirname], // directive definition
       arg = argIndex === -1
         ? null
-        : noprefix.slice(argIndex)
+        : noprefix.slice(argIndex) // on-[click]
 
   // parse scope variable key and pipe filters
   var exp = attr.value,
       pipeIndex = exp.indexOf('|'),
       key = pipeIndex === -1 // no filter
         ? exp.trim()
-        : exp.slice(0, pipeIndex).trim(), // sd-text="msg | name"
+        : exp.slice(0, pipeIndex).trim(), // sd-text="msg | capitalize"
       filters = pipeIndex === -1
         ? null
         : exp.slice(pipeIndex).split('|').map(function (filter) {
@@ -139,8 +139,8 @@ function parseDirective(attr) {
 }
 
 export default {
-  create: function (opts) {
-    return new Seed(opts)
+  create: function (app) {
+    return new Seed(app)
   },
   filters: Filters,
   directives: Directives

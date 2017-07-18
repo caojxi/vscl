@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <title>Selector</title>
+  </head>
+  <body>
+    <div id="test" sd-on-click="changeMessage | .button">
+      <p sd-text="msg | capitalize"></p>
+      <p sd-show="something">YOYOYO</p>
+      <p class="button" sd-text="msg"></p>
+      <p sd-class-red="error" sd-text="hello"></p>
+    </div>
+
+    <script>
+      var prefix = 'sd'
+
+      var directives = {
+        text: '',
+        on: '',
+        show: '',
+        class: ''
+      }
+
+      var selector = Object.keys(directives).map(function (d) {
+        return '[' + prefix + '-' + d + ']'
+      }).join()
+
+      var root = document.getElementById('test')
+      var els = root.querySelectorAll(selector)
+    </script>
+  </body>
+</html>
