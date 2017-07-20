@@ -1,3 +1,6 @@
+import Config from './config'
+import watchArray from './watchArray'
+
 const directives = {
   text: function (value) {
     this.el.textContent = value || ''
@@ -22,7 +25,6 @@ const directives = {
       }
 
       if (handler) {
-        handler = handler.bind(this.el)
         this.el.addEventListener(event, handler)
         handlers[event] = handler
       }
@@ -35,8 +37,13 @@ const directives = {
       }
     }
   },
-  repeat: function () {
+  each: {
+    update: function (collection) {
+      watchArray(collection, this.mutate.bind(this))
+    },
+    mutate: function (mutation) {
 
+    }
   }
 }
 

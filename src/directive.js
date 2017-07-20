@@ -1,3 +1,4 @@
+import Config from './config'
 import Directives from './directives'
 import Filters from './filters'
 
@@ -25,8 +26,10 @@ function Directive(def, attr, arg, key) {
   if (filters) {
     this.filters = filters.map(function (filter) {
       var tokens = filter.replace('|', '').trim().split(/\s+/)
+      var name = tokens[0]
       return {
-        apply: Filters[tokens[0]],
+        name: name,
+        apply: Filters[name],
         args: tokens.length > 1 ? tokens.slice(1) : null
       }
     })
@@ -54,7 +57,9 @@ Directive.prototype.update = function (value) {
 
 export default {
   // make sure the directive value is valid
-  parse: function (attr, prefix) {
+  parse: function (attr) {
+    var prefix = Config.prefix
+
     if (attr.name.indexOf(prefix) === -1) return null
 
     var noPrefix = attr.name.slice(prefix.length + 1),

@@ -1,5 +1,27 @@
-var v = (function () {
+var Seed = (function () {
 'use strict';
+
+var Config = {
+  prefix: 'sd',
+  selector: null
+};
+
+var proto = Array.prototype;
+var slice = proto.slice;
+var mutatorMethods = ['pop', 'push', 'shift', 'unshift', 'splice', 'sort'];
+
+var watchArray = function watchArray(arr, cb) {
+  mutatorMethods.forEach(function (method) {
+    arr[method] = function () {
+      proto[method].apply(this, arguments);
+      cb({
+        event: method,
+        args: slice.call(arguments), // return a shallow copy
+        array: arr
+      });
+    };
+  });
+};
 
 var directives = {
   text: function text(value) {
@@ -25,7 +47,6 @@ var directives = {
       }
 
       if (handler) {
-        handler = handler.bind(this.el);
         this.el.addEventListener(event, handler);
         handlers[event] = handler;
       }
@@ -38,7 +59,12 @@ var directives = {
       }
     }
   },
-  repeat: function repeat() {}
+  each: {
+    update: function update(collection) {
+      watchArray(collection, this.mutate.bind(this));
+    },
+    mutate: function mutate(mutation) {}
+  }
 };
 
 var filters = {
@@ -85,8 +111,10 @@ function Directive(def, attr, arg, key) {
   if (filters$$1) {
     this.filters = filters$$1.map(function (filter) {
       var tokens = filter.replace('|', '').trim().split(/\s+/);
+      var name = tokens[0];
       return {
-        apply: filters[tokens[0]],
+        name: name,
+        apply: filters[name],
         args: tokens.length > 1 ? tokens.slice(1) : null
       };
     });
@@ -114,7 +142,9 @@ Directive.prototype.update = function (value) {
 
 var Directive$1 = {
   // make sure the directive value is valid
-  parse: function parse(attr, prefix) {
+  parse: function parse(attr) {
+    var prefix = Config.prefix;
+
     if (attr.name.indexOf(prefix) === -1) return null;
 
     var noPrefix = attr.name.slice(prefix.length + 1),
@@ -129,41 +159,75 @@ var Directive$1 = {
   }
 };
 
-var prefix = 'sd';
-var selector = Object.keys(directives).map(function (d) {
-  return '[' + prefix + '-' + d + ']';
-}).join();
+function Seed$1(el, app) {
+  if (typeof el === 'string') {
+    el = document.getElementById(el);
+  }
 
-function Seed(app) {
-  var self = this,
-      root = this.el = document.getElementById(app.id),
-      // Element
-  els = root.querySelectorAll(selector); // DOM binding elements
+  this.el = el;
+  this._bindings = {};
+  this.scope = {};
 
-  self.bindings = {}; // internal real data
-  self.scope = {} // external interface
-
-  ;[].forEach.call(els, this.compileNode.bind(this));
-  this.compileNode(root);
+  var els = el.querySelectorAll(Config.selector);[].forEach.call(els, this._compileNode.bind(this));
+  this._compileNode(el);
 
   // initialize all variables by invoking setters
-  for (var key in self.bindings) {
-    self.scope[key] = app.scope[key];
+  for (var key in this._bindings) {
+    this.scope[key] = app[key];
   }
 }
 
-Seed.prototype.compileNode = function (node) {
+Seed$1.prototype._compileNode = function (node) {
   var self = this;
 
   cloneAttributes(node.attributes).forEach(function (attr) {
-    var directive = Directive$1.parse(attr, prefix);
+    var directive = Directive$1.parse(attr);
     if (directive) {
-      self.bind(node, directive);
+      self._bind(node, directive);
     }
   });
 };
 
-Seed.prototype.dump = function () {
+Seed$1.prototype._bind = function (node, directive) {
+  directive.el = node; // save node as reference
+  node.removeAttribute(directive.attr.name);
+
+  var key = directive.key,
+      binding = this._bindings[key] || this._createBinding(key);
+
+  // add directive to this binding
+  binding.directives.push(directive);
+
+  if (directive.bind) {
+    directive.bind(node, binding.value);
+  }
+};
+
+Seed$1.prototype._createBinding = function (key) {
+  var binding = {
+    value: undefined,
+    directives: []
+  };
+
+  this._bindings[key] = binding;
+
+  // bind accessor triggers to scope
+  Object.defineProperty(this.scope, key, {
+    get: function get() {
+      return binding.value;
+    },
+    set: function set(value) {
+      binding.value = value;
+      binding.directives.forEach(function (directive) {
+        directive.update(value);
+      });
+    }
+  });
+
+  return binding;
+};
+
+Seed$1.prototype.dump = function () {
   var data = {};
 
   for (var key in this._bindings) {
@@ -173,7 +237,7 @@ Seed.prototype.dump = function () {
   return data;
 };
 
-Seed.prototype.destroy = function () {
+Seed$1.prototype.destroy = function () {
   for (var key in this._bindings) {
     this._bindings[key].directives.forEach(function (directive) {
       if (directive.definition.unbind) {
@@ -194,53 +258,42 @@ function cloneAttributes(attributes) {
   });
 }
 
-Seed.prototype.bind = function (node, directive) {
-  directive.el = node;
-  node.removeAttribute(directive.attr.name);
+Seed$1.config = Config;
+buildSelector();
 
-  var key = directive.key,
-      binding = this.bindings[key] || this.createBinding(key);
-
-  // add directive to this binding
-  binding.directives.push(directive);
-
-  if (directive.bind) {
-    directive.bind(node, binding.value);
-  }
+Seed$1.directive = function (name, fn) {
+  directives[name] = fn;
+  buildSelector();
 };
 
-Seed.prototype.createBinding = function (key) {
-  var binding = {
-    value: undefined,
-    directives: []
+Seed$1.filter = function (name, fn) {
+  filters[name] = fn;
+};
+
+Seed$1.extend = function (app) {
+  var Spore = function Spore() {
+    Seed$1.apply(this, arguments);
+    for (var prop in this.extensions) {
+      var ext = this.extensions[ext];
+      this.scope[prop] = typeof ext === 'function' ? ext.bind(this) : ext;
+    }
   };
 
-  this.bindings[key] = binding;
+  Spore.prototype = Object.create(Seed$1.prototype);
+  Spore.prototype.extensions = {};
+  for (var prop in app) {
+    Spore.prototype.extensions[prop] = app[prop];
+  }
 
-  // bind accessor triggers to scope
-  Object.defineProperty(this.scope, key, {
-    get: function get() {
-      return binding.value;
-    },
-    set: function set(value) {
-      binding.value = value;
-      binding.directives.forEach(function (directive) {
-        directive.update(value);
-      });
-    }
-  });
-
-  return binding;
+  return Spore;
 };
 
-var index = {
-  create: function create(app) {
-    return new Seed(app);
-  },
-  directive: function directive() {},
-  filter: function filter() {}
-};
+function buildSelector() {
+  Config.selector = Object.keys(directives).map(function (directive) {
+    return '[' + Config.prefix + '-' + directive + ']';
+  }).join();
+}
 
-return index;
+return Seed$1;
 
 }());
