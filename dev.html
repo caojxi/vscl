@@ -5,52 +5,21 @@
   <title>title</title>
   <meta charset="utf-8">
   <script src="dist/v.js"></script>
-  <style type="text/css">
-    .red {
-      color: red;
-    }
-  </style>
 </head>
 
 <body>
-  <div id="test" sd-on-click="changeMessage | delegate .button">
-    <p sd-text="msg.wow | capitalize" sd-on-click="remove"></p>
-    <p sd-text="msg.wow | uppercase" class="button"></p>
-    <p sd-text="total | money"></p>
-    <p sd-class-red="error" sd-text="hello"></p>
-    <ul sd-show="todos">
-      <li sd-each-todo="todos" sd-text="todo.text"></li>
-    </ul>
+  <div id="demo" v-on="click:changeText">
+    <p v-text="hello"></p>
   </div>
   <script>
-    Seed.filter('money', function (value) {
-      return '$' + value.toFixed(2)
-    })
-
-    // define a seed
-    var Todos = Seed.extend({
-      changeMessage: function () {
-        this.scope['msg.wow'] = 'hola'
-      },
-      remove: function () {
-        this.destroy()
-      }
-    })
-
-    var todos = new Todos('test', {
-      total: 1000,
-      'msg.wow': 'wow',
-      hello: 'hello',
-      todos: [
-        {
-          title: 'make this shit work',
-          done: false
-        },
-        {
-          title: 'make this shit kinda work',
-          done: true
+    new Vue({
+      el: '#demo',
+      scope: {
+        hello: 'Hello World!',
+        changeText: function () {
+          this.hello = 'Hello VueJS!'
         }
-      ]
+      }
     })
   </script>
 </body>

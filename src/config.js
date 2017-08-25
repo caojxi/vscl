@@ -1,4 +1,8 @@
 export default {
-  prefix: 'sd',
-  selector: null
+  prefix     : 'v',
+  debug      : false,
+  silent     : false,
+  enterClass : 'v-enter',
+  leaveClass : 'v-leave',
+  attrs      : {}
 }
